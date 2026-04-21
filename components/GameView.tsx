@@ -1,6 +1,5 @@
-
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { Level, GameScore, Question } from '../types';
+import { Level, GameScore } from '../types';
 import GameBlock from './GameBlock';
 
 interface GameViewProps {
@@ -14,7 +13,16 @@ interface GameViewProps {
 declare const Pose: any;
 declare const Camera: any;
 
+type Feedback = 'correct' | 'wrong' | null;
+type BlockStatus = 'correct' | 'wrong' | 'revealedCorrect' | 'none';
+
 let sharedAudioCtx: AudioContext | null = null;
+
+const HIT_COOLDOWN_MS = 1400;
+const CORRECT_ADVANCE_MS = 950;
+const WRONG_ADVANCE_MS = 1700;
+
+const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
 
 const GameView: React.FC<GameViewProps> = ({ level, selectedVoiceURI, onEnd, onQuit }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -24,20 +32,43 @@ const GameView: React.FC<GameViewProps> = ({ level, selectedVoiceURI, onEnd, onQ
   const [score, setScore] = useState({ correct: 0, wrong: 0 });
   const [isLoading, setIsLoading] = useState(true);
   const [isGameStarted, setIsGameStarted] = useState(false);
-  const [feedback, setFeedback] = useState<'correct' | 'wrong' | null>(null);
-  const [hitBlockIdx, setHitBlockIdx] = useState<number | null>(null);
+  const [feedback, setFeedback] = useState<Feedback>(null);
+  const [selectedBlockIdx, setSelectedBlockIdx] = useState<number | null>(null);
+  const [revealedCorrectIdx, setRevealedCorrectIdx] = useState<number | null>(null);
   const [isPoseDetected, setIsPoseDetected] = useState(false);
 
   const scoreRef = useRef({ correct: 0, wrong: 0 });
   const poseInstance = useRef<any>(null);
   const cameraInstance = useRef<any>(null);
   const lastHitTime = useRef(0);
-  
+  const isResolvingRef = useRef(false);
+  const timersRef = useRef<number[]>([]);
+  const gameStateRef = useRef({ isGameStarted: false, feedback: null as Feedback });
+  const selectAnswerRef = useRef<(index: number) => void>(() => {});
+  const handleStartGameRef = useRef<() => void>(() => {});
+
   const question = level.questions[currentQuestionIdx];
-  
-  const blockWidth = Math.min(dimensions.width * 0.22, 200);
-  const blockHeight = blockWidth * 0.7;
-  const blocksY = dimensions.height * 0.2;
+
+  const blockGap = clamp(dimensions.width * 0.03, 12, 76);
+  const availableWidth = Math.max(260, dimensions.width - 32);
+  const desiredBlockWidth = clamp(dimensions.width * 0.24, 150, 320);
+  const maxBlockWidth = Math.max(84, (availableWidth - blockGap * 2) / 3);
+  const blockWidth = Math.min(desiredBlockWidth, maxBlockWidth);
+  const blockHeight = clamp(blockWidth * 0.72, 96, 230);
+  const blocksY = clamp(dimensions.height * 0.18, 110, 220);
+  const totalBlocksWidth = blockWidth * 3 + blockGap * 2;
+  const blockStartX = (dimensions.width - totalBlocksWidth) / 2;
+  const startButtonW = Math.min(clamp(dimensions.width * 0.34, 280, 520), Math.max(240, dimensions.width - 48));
+  const startButtonH = clamp(startButtonW * 0.32, 96, 170);
+  const startButtonTop = clamp(dimensions.height * 0.09, 62, 110);
+
+  const queueTimer = useCallback((callback: () => void, delay: number) => {
+    const timerId = window.setTimeout(() => {
+      timersRef.current = timersRef.current.filter(id => id !== timerId);
+      callback();
+    }, delay);
+    timersRef.current.push(timerId);
+  }, []);
 
   useEffect(() => {
     const handleResize = () => {
@@ -47,7 +78,11 @@ const GameView: React.FC<GameViewProps> = ({ level, selectedVoiceURI, onEnd, onQ
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  const playSound = (type: 'correct' | 'wrong' | 'pop') => {
+  useEffect(() => {
+    gameStateRef.current = { isGameStarted, feedback };
+  }, [isGameStarted, feedback]);
+
+  const playSound = useCallback((type: 'correct' | 'wrong' | 'pop') => {
     try {
       if (!sharedAudioCtx) {
         sharedAudioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
@@ -55,7 +90,7 @@ const GameView: React.FC<GameViewProps> = ({ level, selectedVoiceURI, onEnd, onQ
       if (sharedAudioCtx.state === 'suspended') {
         sharedAudioCtx.resume();
       }
-      
+
       const ctx = sharedAudioCtx;
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
@@ -70,7 +105,7 @@ const GameView: React.FC<GameViewProps> = ({ level, selectedVoiceURI, onEnd, onQ
         gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
         osc.start();
         osc.stop(ctx.currentTime + 0.3);
-      } else if (type === 'wrong') {
+      } else {
         osc.type = 'sawtooth';
         osc.frequency.setValueAtTime(200, ctx.currentTime);
         osc.frequency.exponentialRampToValueAtTime(100, ctx.currentTime + 0.2);
@@ -80,9 +115,9 @@ const GameView: React.FC<GameViewProps> = ({ level, selectedVoiceURI, onEnd, onQ
         osc.stop(ctx.currentTime + 0.4);
       }
     } catch (e) {
-      console.warn("Audio Context failed", e);
+      console.warn('Audio Context failed', e);
     }
-  };
+  }, []);
 
   const speak = useCallback((text: string) => {
     if (!text) return;
@@ -99,49 +134,82 @@ const GameView: React.FC<GameViewProps> = ({ level, selectedVoiceURI, onEnd, onQ
       utterance.pitch = 1.1;
       window.speechSynthesis.speak(utterance);
     } catch (err) {
-      console.warn("Speech Synthesis failed", err);
+      console.warn('Speech Synthesis failed', err);
     }
   }, [selectedVoiceURI]);
 
   useEffect(() => {
-    if (!isLoading && isGameStarted && question) {
-      const timer = setTimeout(() => speak(question.correctWord), 500);
-      return () => clearTimeout(timer);
+    if (!isLoading && isGameStarted && question && feedback === null) {
+      const timer = window.setTimeout(() => speak(question.correctWord), 500);
+      return () => window.clearTimeout(timer);
     }
-  }, [currentQuestionIdx, isLoading, isGameStarted, question, speak]);
+  }, [currentQuestionIdx, isLoading, isGameStarted, question, feedback, speak]);
 
-  const handleNextQuestion = useCallback((isCorrect: boolean) => {
-    if (isCorrect) {
-      scoreRef.current.correct++;
-      setScore(prev => ({ ...prev, correct: prev.correct + 1 }));
-    } else {
-      scoreRef.current.wrong++;
-      setScore(prev => ({ ...prev, wrong: prev.wrong + 1 }));
+  const handleStartGame = useCallback(() => {
+    if (gameStateRef.current.isGameStarted) return;
+    playSound('pop');
+    setIsGameStarted(true);
+    lastHitTime.current = Date.now();
+  }, [playSound]);
+
+  useEffect(() => {
+    handleStartGameRef.current = handleStartGame;
+  }, [handleStartGame]);
+
+  const selectAnswer = useCallback((optionIndex: number) => {
+    if (!question || feedback !== null || isResolvingRef.current) return;
+
+    const selectedOption = question.options[optionIndex];
+    if (!selectedOption) return;
+
+    isResolvingRef.current = true;
+    lastHitTime.current = Date.now();
+
+    const correctIndex = question.options.findIndex(opt => opt.word === question.correctWord);
+    const isCorrect = selectedOption.word === question.correctWord;
+    const nextScore = isCorrect
+      ? { ...scoreRef.current, correct: scoreRef.current.correct + 1 }
+      : { ...scoreRef.current, wrong: scoreRef.current.wrong + 1 };
+
+    scoreRef.current = nextScore;
+    setScore(nextScore);
+    setSelectedBlockIdx(optionIndex);
+    setRevealedCorrectIdx(correctIndex);
+    setFeedback(isCorrect ? 'correct' : 'wrong');
+    playSound(isCorrect ? 'correct' : 'wrong');
+
+    if (!isCorrect) {
+      queueTimer(() => speak(question.correctWord), 350);
     }
 
-    const nextIdx = currentQuestionIdx + 1;
-    if (nextIdx < level.questions.length) {
-      setTimeout(() => {
+    queueTimer(() => {
+      const nextIdx = currentQuestionIdx + 1;
+      if (nextIdx < level.questions.length) {
         setCurrentQuestionIdx(nextIdx);
         setFeedback(null);
-        setHitBlockIdx(null);
-      }, 1000);
-    } else {
-      setTimeout(() => {
+        setSelectedBlockIdx(null);
+        setRevealedCorrectIdx(null);
+        isResolvingRef.current = false;
+        lastHitTime.current = Date.now();
+      } else {
         onEnd({
           correct: scoreRef.current.correct,
           wrong: scoreRef.current.wrong,
           total: level.questions.length
         });
-      }, 1000);
-    }
-  }, [currentQuestionIdx, level.questions.length, onEnd]);
+      }
+    }, isCorrect ? CORRECT_ADVANCE_MS : WRONG_ADVANCE_MS);
+  }, [currentQuestionIdx, feedback, level.questions.length, onEnd, playSound, question, queueTimer, speak]);
 
-  const handleStartGame = () => {
-    if (isGameStarted) return;
-    playSound('pop');
-    setIsGameStarted(true);
-    lastHitTime.current = Date.now();
+  useEffect(() => {
+    selectAnswerRef.current = selectAnswer;
+  }, [selectAnswer]);
+
+  const getBlockStatus = (idx: number): BlockStatus => {
+    if (feedback === null) return 'none';
+    if (idx === selectedBlockIdx) return feedback === 'correct' ? 'correct' : 'wrong';
+    if (feedback === 'wrong' && idx === revealedCorrectIdx) return 'revealedCorrect';
+    return 'none';
   };
 
   const onResults = useCallback((results: any) => {
@@ -168,79 +236,70 @@ const GameView: React.FC<GameViewProps> = ({ level, selectedVoiceURI, onEnd, onQ
     const now = Date.now();
     let fx = -100;
     let fy = -100;
+    let pointerDetected = false;
 
     if (results.poseLandmarks && results.poseLandmarks.length > 0) {
-      setIsPoseDetected(true);
       const landmarks = results.poseLandmarks;
       const nose = landmarks[0];
       const leftEye = landmarks[2];
       const rightEye = landmarks[5];
 
       if (nose && leftEye && rightEye) {
-        const eyesY_px = ((leftEye.y + rightEye.y) / 2) * height;
-        const eyesX_px = ((1 - leftEye.x) + (1 - rightEye.x)) / 2 * width;
-        const noseY_px = nose.y * height;
-        
-        const faceHeight = Math.abs(noseY_px - eyesY_px);
-        fx = eyesX_px;
-        fy = eyesY_px - (faceHeight * 1.5);
+        const eyesY = ((leftEye.y + rightEye.y) / 2) * height;
+        const eyesX = ((1 - leftEye.x) + (1 - rightEye.x)) / 2 * width;
+        const noseY = nose.y * height;
+        const faceHeight = Math.abs(noseY - eyesY);
+
+        fx = clamp(eyesX, 0, width);
+        fy = clamp(eyesY - faceHeight * 1.5, 0, height);
+        pointerDetected = true;
       }
-    } else {
-      setIsPoseDetected(false);
     }
 
-    if (!isGameStarted) {
-      const startW = Math.min(width * 0.4, 300);
-      const startH = startW * 0.35;
-      const startX = width / 2 - startW / 2;
-      const startY = 80;
+    setIsPoseDetected(pointerDetected);
 
-      if (isPoseDetected && fx > startX && fx < startX + startW && fy > startY && fy < startY + startH) {
-        if (now - lastHitTime.current > 1500) {
-          handleStartGame();
-        }
+    if (!gameStateRef.current.isGameStarted) {
+      const startX = width / 2 - startButtonW / 2;
+      const startY = startButtonTop;
+      const isOnStart = fx > startX && fx < startX + startButtonW && fy > startY && fy < startY + startButtonH;
+
+      if (pointerDetected && isOnStart && now - lastHitTime.current > HIT_COOLDOWN_MS) {
+        handleStartGameRef.current();
       }
-    } else if (question && feedback === null) {
-      const totalBlocksWidth = (blockWidth * 3) + (width * 0.05 * 2);
-      const startX = (width - totalBlocksWidth) / 2 + (width * 0.05);
-      const blockMargin = width * 0.05;
+    } else if (pointerDetected && gameStateRef.current.feedback === null && !isResolvingRef.current) {
+      if (now - lastHitTime.current > HIT_COOLDOWN_MS) {
+        for (let idx = 0; idx < 3; idx++) {
+          const bX = blockStartX + idx * (blockWidth + blockGap);
+          const bY = blocksY;
+          const isOnBlock = fx > bX && fx < bX + blockWidth && fy > bY && fy < bY + blockHeight + 24;
 
-      question.options.forEach((opt, idx) => {
-        const bX = startX + idx * (blockWidth + blockMargin);
-        const bY = blocksY;
-        
-        if (now - lastHitTime.current > 1500) {
-          if (fx > bX && fx < bX + blockWidth && fy > bY && fy < bY + blockHeight + 20) {
-            lastHitTime.current = now;
-            setHitBlockIdx(idx);
-            const isCorrect = opt.word === question.correctWord;
-            setFeedback(isCorrect ? 'correct' : 'wrong');
-            playSound(isCorrect ? 'correct' : 'wrong');
-            handleNextQuestion(isCorrect);
+          if (isOnBlock) {
+            selectAnswerRef.current(idx);
+            break;
           }
         }
-      });
+      }
     }
 
-    if (isPoseDetected) {
+    if (pointerDetected) {
       ctx.save();
-      const cursorSize = Math.max(48, width * 0.08);
+      const cursorSize = clamp(width * 0.08, 56, 132);
       ctx.font = `${cursorSize}px serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.shadowBlur = 15;
-      ctx.shadowColor = 'rgba(0,0,0,0.5)';
+      ctx.shadowBlur = 18;
+      ctx.shadowColor = 'rgba(0,0,0,0.55)';
       ctx.fillText('🍄', fx, fy);
       ctx.restore();
     }
-  }, [dimensions, isGameStarted, isPoseDetected, question, feedback, blockWidth, blockHeight, blocksY, handleNextQuestion]);
+  }, [blockGap, blockHeight, blockStartX, blockWidth, blocksY, dimensions, startButtonH, startButtonTop, startButtonW]);
 
   useEffect(() => {
     let active = true;
     const startMediaPipe = async () => {
       try {
         if (typeof Pose === 'undefined' || typeof Camera === 'undefined') {
-          console.error("MediaPipe scripts not loaded yet");
+          console.error('MediaPipe scripts not loaded yet');
           return;
         }
 
@@ -264,11 +323,8 @@ const GameView: React.FC<GameViewProps> = ({ level, selectedVoiceURI, onEnd, onQ
         if (videoRef.current) {
           const camera = new Camera(videoRef.current, {
             onFrame: async () => {
-              if (active && videoRef.current && poseInstance.current) {
-                // Ensure video is ready before processing
-                if (videoRef.current.readyState >= 2) {
-                  await poseInstance.current.send({ image: videoRef.current });
-                }
+              if (active && videoRef.current && poseInstance.current && videoRef.current.readyState >= 2) {
+                await poseInstance.current.send({ image: videoRef.current });
               }
             },
             width: 640,
@@ -279,7 +335,8 @@ const GameView: React.FC<GameViewProps> = ({ level, selectedVoiceURI, onEnd, onQ
           if (active) setIsLoading(false);
         }
       } catch (err) {
-        console.error("Camera/Pose initialization failed", err);
+        console.error('Camera/Pose initialization failed', err);
+        if (active) setIsLoading(false);
       }
     };
 
@@ -287,22 +344,21 @@ const GameView: React.FC<GameViewProps> = ({ level, selectedVoiceURI, onEnd, onQ
 
     return () => {
       active = false;
+      timersRef.current.forEach(timerId => window.clearTimeout(timerId));
+      timersRef.current = [];
       if (cameraInstance.current) cameraInstance.current.stop();
       if (poseInstance.current) poseInstance.current.close();
       window.speechSynthesis.cancel();
     };
   }, [onResults]);
 
-  const startButtonW = Math.min(dimensions.width * 0.4, 300);
-  const startButtonH = startButtonW * 0.35;
-
   return (
     <div className="fixed inset-0 bg-black flex flex-col items-center justify-center z-50 font-['Fredoka'] overflow-hidden">
       {isLoading && (
         <div className="absolute inset-0 bg-cyan-200 z-[100] flex flex-col items-center justify-center p-10 text-center">
-          <div className="text-8xl animate-bounce mb-8">🪄</div>
-          <h2 className="text-4xl font-bold text-pink-600 mb-4">Waking up the magic...</h2>
-          <p className="text-xl text-gray-500 max-w-xs leading-loose">Please allow camera access!</p>
+          <div className="text-8xl md:text-9xl animate-bounce mb-8">🪄</div>
+          <h2 className="text-4xl md:text-6xl font-black text-pink-600 mb-5">Waking up the magic...</h2>
+          <p className="text-2xl md:text-3xl text-gray-600 max-w-2xl leading-snug">Please allow camera access!</p>
         </div>
       )}
 
@@ -310,37 +366,45 @@ const GameView: React.FC<GameViewProps> = ({ level, selectedVoiceURI, onEnd, onQ
         <video ref={videoRef} className="hidden" playsInline muted />
         <canvas ref={canvasRef} width={dimensions.width} height={dimensions.height} className="w-full h-full object-cover" />
 
-        <div className="absolute top-6 left-6 z-30 flex gap-4">
-           <div className="bg-white/90 px-6 py-3 rounded-2xl pixel-border text-lg font-bold shadow-lg">Stars: {score.correct}</div>
-           {isGameStarted && (
-             <div className="bg-white/90 px-6 py-3 rounded-2xl pixel-border text-lg font-bold shadow-lg">
-               {currentQuestionIdx + 1}/{level.questions.length}
-             </div>
-           )}
+        <div className="absolute top-6 left-6 z-30 flex flex-wrap gap-5">
+          <div className="bg-white/95 px-7 py-4 rounded-2xl pixel-border text-2xl md:text-3xl font-black shadow-lg">Stars: {score.correct}</div>
+          {isGameStarted && (
+            <div className="bg-white/95 px-7 py-4 rounded-2xl pixel-border text-2xl md:text-3xl font-black shadow-lg">
+              {currentQuestionIdx + 1}/{level.questions.length}
+            </div>
+          )}
         </div>
 
-        <button onClick={onQuit} className="absolute top-6 right-6 z-30 bg-red-500 text-white px-6 py-3 rounded-2xl pixel-border text-lg font-bold hover:bg-red-600 active:scale-95 transition-all shadow-lg">QUIT</button>
+        <button onClick={onQuit} className="absolute top-6 right-6 z-30 bg-red-500 text-white px-7 py-4 rounded-2xl pixel-border text-xl md:text-2xl font-black hover:bg-red-600 active:scale-95 transition-all shadow-lg">
+          QUIT
+        </button>
 
         {!isGameStarted && !isLoading && (
           <div className="absolute inset-0 pointer-events-none">
             <button
               onClick={handleStartGame}
-              className={`absolute left-1/2 -translate-x-1/2 pixel-border pointer-events-auto transition-all duration-200 active:translate-y-1 ${isPoseDetected ? 'bg-green-500 hover:bg-green-400' : 'bg-gray-400 opacity-80 cursor-pointer'} text-white font-bold shadow-2xl`}
-              style={{ top: '80px', width: `${startButtonW}px`, height: `${startButtonH}px`, fontSize: `${Math.max(18, startButtonH * 0.35)}px`, borderRadius: '12px' }}
+              className={`absolute left-1/2 -translate-x-1/2 pixel-border pointer-events-auto transition-all duration-200 active:translate-y-1 ${isPoseDetected ? 'bg-green-500 hover:bg-green-400' : 'bg-sky-500 hover:bg-sky-400'} text-white font-black shadow-2xl`}
+              style={{
+                top: `${startButtonTop}px`,
+                width: `${startButtonW}px`,
+                height: `${startButtonH}px`,
+                fontSize: `${clamp(startButtonH * 0.38, 32, 60)}px`,
+                borderRadius: '16px'
+              }}
             >
-              {isPoseDetected ? 'START' : 'FORCE START'}
-              <div className="absolute inset-0 border-t-4 border-white/30 rounded-lg" />
+              START
+              <div className="absolute inset-0 border-t-4 border-white/30 rounded-xl" />
             </button>
-            <div className="absolute bottom-24 left-1/2 -translate-x-1/2 z-30 bg-white/90 p-8 rounded-3xl pixel-border text-center max-w-md shadow-2xl pointer-events-none">
+            <div className="absolute bottom-12 md:bottom-20 left-1/2 -translate-x-1/2 z-30 bg-white/95 p-8 md:p-10 rounded-3xl pixel-border text-center max-w-2xl shadow-2xl pointer-events-none">
               {isPoseDetected ? (
                 <>
-                  <h3 className="text-3xl font-bold text-green-600 mb-2">I see you!</h3>
-                  <p className="text-xl text-gray-600">Now hit <span className="text-green-600 font-bold">START</span> with your head!</p>
+                  <h3 className="text-4xl md:text-5xl font-black text-green-600 mb-3">I see you!</h3>
+                  <p className="text-2xl md:text-3xl text-gray-700 leading-tight">Hit <span className="text-green-600 font-black">START</span> with your head, or tap it.</p>
                 </>
               ) : (
                 <>
-                  <h3 className="text-3xl font-bold text-orange-600 mb-2">Can't see you yet...</h3>
-                  <p className="text-xl text-gray-600 leading-relaxed">Try to stand back, or click the button above!</p>
+                  <h3 className="text-4xl md:text-5xl font-black text-orange-600 mb-3">Ready?</h3>
+                  <p className="text-2xl md:text-3xl text-gray-700 leading-tight">Stand back, or tap <span className="text-sky-600 font-black">START</span>.</p>
                 </>
               )}
             </div>
@@ -349,30 +413,41 @@ const GameView: React.FC<GameViewProps> = ({ level, selectedVoiceURI, onEnd, onQ
 
         {isGameStarted && !isLoading && question && (
           <>
-            <button onClick={() => speak(question.correctWord)} className="absolute bottom-16 left-1/2 -translate-x-1/2 z-30 bg-pink-500 text-white px-10 py-6 rounded-[2.5rem] pixel-border animate-bounce shadow-2xl hover:bg-pink-400 active:scale-95 transition-all flex flex-col items-center justify-center min-w-[200px]">
-              <div className="text-sm font-black mb-1 opacity-90 tracking-widest">Listen:</div>
-              <div className="flex items-center gap-3">
-                <span className="text-4xl">🔊</span>
-                <span className="text-3xl font-black">PLAY</span>
+            <button onClick={() => speak(question.correctWord)} className="absolute bottom-10 md:bottom-14 left-1/2 -translate-x-1/2 z-30 bg-pink-500 text-white px-12 py-7 rounded-[2.5rem] pixel-border animate-bounce shadow-2xl hover:bg-pink-400 active:scale-95 transition-all flex flex-col items-center justify-center min-w-[260px] md:min-w-[330px]">
+              <div className="text-base md:text-xl font-black mb-1 opacity-90">Listen</div>
+              <div className="flex items-center gap-4">
+                <span className="text-5xl md:text-6xl">🔊</span>
+                <span className="text-4xl md:text-5xl font-black">PLAY</span>
               </div>
               <div className="absolute inset-0 border-t-4 border-white/30 rounded-[2.5rem] pointer-events-none" />
             </button>
             <div className="absolute inset-0 pointer-events-none">
-              {question.options.map((opt, idx) => {
-                const totalBlocksWidth = (blockWidth * 3) + (dimensions.width * 0.05 * 2);
-                const startX = (dimensions.width - totalBlocksWidth) / 2 + (dimensions.width * 0.05);
-                const blockMargin = dimensions.width * 0.05;
-                return (
-                  <GameBlock key={idx + currentQuestionIdx} option={opt} x={startX + idx * (blockWidth + blockMargin)} y={blocksY} width={blockWidth} height={blockHeight} isHit={hitBlockIdx === idx} status={hitBlockIdx === idx ? feedback || 'none' : 'none'} />
-                );
-              })}
+              {question.options.map((opt, idx) => (
+                <GameBlock
+                  key={idx + currentQuestionIdx}
+                  option={opt}
+                  x={blockStartX + idx * (blockWidth + blockGap)}
+                  y={blocksY}
+                  width={blockWidth}
+                  height={blockHeight}
+                  isHit={selectedBlockIdx === idx}
+                  status={getBlockStatus(idx)}
+                  onSelect={() => selectAnswer(idx)}
+                  disabled={feedback !== null}
+                />
+              ))}
             </div>
           </>
         )}
 
-        {feedback && (
-          <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-40 text-6xl font-black px-16 py-10 rounded-[2.5rem] pixel-border shadow-2xl ${feedback === 'correct' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'}`}>
-             {feedback === 'correct' ? 'YEAH! 🎉' : 'TRY AGAIN! 😮'}
+        {feedback && question && (
+          <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-40 text-center px-12 md:px-20 py-8 md:py-12 rounded-[2.5rem] pixel-border shadow-2xl ${feedback === 'correct' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'}`}>
+            <div className="text-5xl md:text-7xl font-black">
+              {feedback === 'correct' ? 'YEAH!' : `LOOK! ${question.correctWord}`}
+            </div>
+            <div className="mt-4 text-2xl md:text-4xl font-black opacity-90">
+              {feedback === 'correct' ? 'Great jump!' : 'Green block is right!'}
+            </div>
           </div>
         )}
       </div>

@@ -57,33 +57,33 @@ const App: React.FC = () => {
       <div className="absolute bottom-10 right-1/4 text-5xl opacity-30">🌻</div>
 
       {gameState === GameState.MENU && (
-        <div className="z-10 bg-white/95 p-6 md:p-10 rounded-[3rem] pixel-border text-center max-w-5xl w-full mx-4 shadow-2xl overflow-y-auto max-h-[92vh] flex flex-col items-center">
-          <h1 className="text-4xl md:text-6xl font-black text-pink-600 mb-2 leading-tight drop-shadow-sm uppercase tracking-tight">
+        <div className="z-10 bg-white/95 p-6 md:p-12 rounded-[3rem] pixel-border text-center max-w-6xl w-full mx-4 shadow-2xl overflow-y-auto max-h-[92vh] flex flex-col items-center">
+          <h1 className="text-5xl md:text-7xl font-black text-pink-600 mb-3 leading-tight drop-shadow-sm uppercase">
             Magic Jumper! 🌟
           </h1>
-          <p className="text-xl text-gray-500 mb-6 font-bold">Pick your Word Adventure!</p>
+          <p className="text-2xl md:text-3xl text-gray-500 mb-8 font-bold">Pick your Word Adventure!</p>
           
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-6 mb-8 w-full max-w-4xl px-2">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-6 md:gap-8 mb-9 w-full max-w-5xl px-2">
             {LEVELS.map(level => (
               <button
                 key={level.id}
                 onClick={() => handleLevelSelect(level)}
                 className="
                   group relative flex flex-col items-center justify-center 
-                  bg-white p-6 rounded-[2rem] pixel-border
+                  bg-white p-6 md:p-8 rounded-[2rem] pixel-border min-h-[170px]
                   hover:bg-yellow-50 transition-all active:translate-y-2
                   border-b-[12px] border-black/10 hover:border-b-[4px]
                   level-card
                 "
               >
-                <div className="text-6xl mb-4 group-hover:scale-110 transition-transform">
+                <div className="text-6xl md:text-7xl mb-4 group-hover:scale-110 transition-transform">
                   {level.thumbnail}
                 </div>
                 <div className="text-center">
-                  <span className="block text-xl font-black text-gray-800 uppercase tracking-tighter leading-none mb-1">
+                  <span className="block text-xl md:text-2xl font-black text-gray-800 uppercase leading-none mb-2">
                     {level.name.replace(/Level\s/i, '')}
                   </span>
-                  <span className="block text-[14px] font-normal text-white bg-violet-500 px-3 py-1 rounded-full shadow-sm">
+                  <span className="block text-base md:text-lg font-bold text-white bg-violet-500 px-4 py-1 rounded-full shadow-sm">
                     {level.category}
                   </span>
                 </div>
@@ -93,13 +93,13 @@ const App: React.FC = () => {
             ))}
           </div>
 
-          <div className="w-full max-w-md bg-pink-50 p-6 rounded-[2rem] border-4 border-pink-100 shadow-inner">
-            <label className="block text-xs text-pink-400 mb-3 uppercase font-black tracking-[0.2em]">Voice Teacher:</label>
+          <div className="w-full max-w-xl bg-pink-50 p-7 rounded-[2rem] border-4 border-pink-100 shadow-inner">
+            <label className="block text-sm md:text-base text-pink-500 mb-3 uppercase font-black">Voice Teacher:</label>
             <div className="relative">
               <select 
                 value={selectedVoiceURI}
                 onChange={(e) => setSelectedVoiceURI(e.target.value)}
-                className="w-full p-4 rounded-2xl border-4 border-white bg-white text-lg font-bold text-gray-700 focus:outline-none focus:ring-4 focus:ring-pink-200 cursor-pointer shadow-sm appearance-none"
+                className="w-full p-5 rounded-2xl border-4 border-white bg-white text-xl md:text-2xl font-bold text-gray-700 focus:outline-none focus:ring-4 focus:ring-pink-200 cursor-pointer shadow-sm appearance-none"
               >
                 {availableVoices.length > 0 ? (
                   availableVoices.map(voice => (
@@ -127,26 +127,26 @@ const App: React.FC = () => {
       )}
 
       {gameState === GameState.SETTLEMENT && (
-        <div className="z-10 bg-white/95 p-12 rounded-[3rem] pixel-border text-center max-w-xl w-full mx-4 shadow-2xl relative">
-          <div className="absolute -top-12 left-1/2 -translate-x-1/2 text-8xl">🏆</div>
-          <h2 className="text-5xl font-black text-violet-600 mb-10 mt-4 uppercase tracking-tighter">Big Win!</h2>
+        <div className="z-10 bg-white/95 p-10 md:p-14 rounded-[3rem] pixel-border text-center max-w-2xl w-full mx-4 shadow-2xl relative">
+          <div className="absolute -top-14 left-1/2 -translate-x-1/2 text-8xl md:text-9xl">🏆</div>
+          <h2 className="text-5xl md:text-7xl font-black text-violet-600 mb-10 mt-5 uppercase">Big Win!</h2>
           
           <div className="grid grid-cols-2 gap-8 mb-10">
-            <div className="p-8 bg-green-50 rounded-3xl border-4 border-green-100">
-              <div className="text-sm font-black text-green-500 uppercase tracking-widest mb-1">Stars</div>
-              <div className="text-6xl font-black text-green-600">{score.correct}</div>
+            <div className="p-8 md:p-10 bg-green-50 rounded-3xl border-4 border-green-100">
+              <div className="text-base md:text-xl font-black text-green-500 uppercase mb-2">Stars</div>
+              <div className="text-6xl md:text-8xl font-black text-green-600">{score.correct}</div>
             </div>
-            <div className="p-8 bg-orange-50 rounded-3xl border-4 border-orange-100">
-              <div className="text-sm font-black text-orange-400 uppercase tracking-widest mb-1">Total</div>
-              <div className="text-6xl font-black text-orange-500">{score.total}</div>
+            <div className="p-8 md:p-10 bg-orange-50 rounded-3xl border-4 border-orange-100">
+              <div className="text-base md:text-xl font-black text-orange-400 uppercase mb-2">Total</div>
+              <div className="text-6xl md:text-8xl font-black text-orange-500">{score.total}</div>
             </div>
           </div>
 
-          <div className="mb-12 p-8 bg-gradient-to-br from-yellow-50 to-orange-50 rounded-[2rem] italic text-2xl text-gray-700 leading-tight font-medium border-4 border-white shadow-xl">
+          <div className="mb-12 p-8 md:p-10 bg-gradient-to-br from-yellow-50 to-orange-50 rounded-[2rem] italic text-2xl md:text-4xl text-gray-700 leading-tight font-medium border-4 border-white shadow-xl">
             "{encouragement || 'Preparing your special prize...'}"
           </div>
 
-          <PixelButton onClick={() => setGameState(GameState.MENU)} className="w-full py-8 text-2xl rounded-3xl shadow-xl hover:scale-105 active:scale-95 transition-all uppercase font-black">
+          <PixelButton onClick={() => setGameState(GameState.MENU)} className="w-full py-8 text-3xl md:text-4xl rounded-3xl shadow-xl hover:scale-105 active:scale-95 transition-all uppercase font-black">
             GO AGAIN! 🔄
           </PixelButton>
         </div>

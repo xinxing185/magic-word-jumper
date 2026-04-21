@@ -19,7 +19,7 @@ const PixelButton: React.FC<PixelButtonProps> = ({ onClick, children, color = 'b
         pixel-border ${color} ${className}
         ${disabled ? 'opacity-50 cursor-not-allowed' : 'hover:brightness-110'}
       `}
-      style={{ fontSize: '0.75rem', lineHeight: '1.5' }}
+      style={{ lineHeight: '1.5' }}
     >
       <div className="relative z-10 flex items-center justify-center gap-2">
         {children}
