@@ -1,0 +1,7 @@
+{
+  "name": "Magic Word Jumper",
+  "description": "A motion-controlled pixel-art game for kids to learn English words by jumping and hitting blocks with their heads, powered by computer vision.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
