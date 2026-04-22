@@ -15,14 +15,176 @@ declare const Camera: any;
 
 type Feedback = 'correct' | 'wrong' | null;
 type BlockStatus = 'correct' | 'wrong' | 'revealedCorrect' | 'none';
+type ScreenPoint = { x: number; y: number; visible: boolean };
 
 let sharedAudioCtx: AudioContext | null = null;
 
 const HIT_COOLDOWN_MS = 1400;
 const CORRECT_ADVANCE_MS = 950;
 const WRONG_ADVANCE_MS = 1700;
+const MIN_LANDMARK_VISIBILITY = 0.35;
+
+const FALLBACK_LIMB_CHAINS = [
+  [11, 13, 15],
+  [12, 14, 16],
+  [23, 25, 27],
+  [24, 26, 28],
+] as const;
 
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
+
+const toScreenPoint = (landmark: any, width: number, height: number): ScreenPoint => ({
+  x: clamp((1 - landmark.x) * width, 0, width),
+  y: clamp(landmark.y * height, 0, height),
+  visible: landmark.visibility === undefined || landmark.visibility >= MIN_LANDMARK_VISIBILITY,
+});
+
+const getPoint = (landmarks: any[], index: number, width: number, height: number): ScreenPoint | null => {
+  const landmark = landmarks[index];
+  if (!landmark) return null;
+  return toScreenPoint(landmark, width, height);
+};
+
+const drawMirroredImage = (ctx: CanvasRenderingContext2D, image: CanvasImageSource, width: number, height: number) => {
+  ctx.save();
+  ctx.translate(width, 0);
+  ctx.scale(-1, 1);
+  ctx.drawImage(image, 0, 0, width, height);
+  ctx.restore();
+};
+
+const createCanvasLayer = (width: number, height: number) => {
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  return canvas;
+};
+
+const drawAbstractBackground = (
+  ctx: CanvasRenderingContext2D,
+  image: CanvasImageSource | undefined,
+  segmentationMask: CanvasImageSource | undefined,
+  width: number,
+  height: number
+) => {
+  ctx.save();
+  ctx.clearRect(0, 0, width, height);
+
+  if (image && segmentationMask) {
+    const backgroundLayer = createCanvasLayer(width, height);
+    const backgroundCtx = backgroundLayer.getContext('2d');
+
+    if (backgroundCtx) {
+      drawMirroredImage(backgroundCtx, image, width, height);
+      backgroundCtx.globalCompositeOperation = 'destination-out';
+      drawMirroredImage(backgroundCtx, segmentationMask, width, height);
+
+      ctx.globalAlpha = 0.22;
+      ctx.drawImage(backgroundLayer, 0, 0);
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  ctx.fillStyle = 'rgba(37, 99, 235, 0.62)';
+  ctx.fillRect(0, 0, width, height);
+  ctx.restore();
+};
+
+const createFilledMaskLayer = (
+  segmentationMask: CanvasImageSource,
+  width: number,
+  height: number,
+  color: string,
+  offsetX = 0,
+  offsetY = 0
+) => {
+  const layer = createCanvasLayer(width, height);
+  const layerCtx = layer.getContext('2d');
+  if (!layerCtx) return layer;
+
+  layerCtx.save();
+  layerCtx.translate(width, 0);
+  layerCtx.scale(-1, 1);
+  layerCtx.drawImage(segmentationMask, offsetX, offsetY, width, height);
+  layerCtx.restore();
+  layerCtx.globalCompositeOperation = 'source-in';
+  layerCtx.fillStyle = color;
+  layerCtx.fillRect(0, 0, width, height);
+
+  return layer;
+};
+
+const drawBodySilhouette = (ctx: CanvasRenderingContext2D, segmentationMask: CanvasImageSource, width: number, height: number) => {
+  const bodyLayer = createFilledMaskLayer(segmentationMask, width, height, 'rgba(0, 0, 0, 0.6)');
+  ctx.drawImage(bodyLayer, 0, 0);
+};
+
+const drawRoundedShapePath = (ctx: CanvasRenderingContext2D, points: Array<ScreenPoint | null>, lineWidth: number, color: string) => {
+  const visiblePoints = points.filter((point): point is ScreenPoint => Boolean(point?.visible));
+  if (visiblePoints.length < 2) return;
+
+  ctx.save();
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.strokeStyle = color;
+  ctx.lineWidth = lineWidth;
+  ctx.beginPath();
+  ctx.moveTo(visiblePoints[0].x, visiblePoints[0].y);
+  visiblePoints.slice(1).forEach(point => ctx.lineTo(point.x, point.y));
+  ctx.stroke();
+  ctx.restore();
+};
+
+const drawFallbackBodyShape = (ctx: CanvasRenderingContext2D, landmarks: any[], width: number, height: number) => {
+  const point = (index: number) => getPoint(landmarks, index, width, height);
+  const shoulderL = point(11);
+  const shoulderR = point(12);
+  const hipL = point(23);
+  const hipR = point(24);
+  const nose = point(0);
+  const eyeL = point(2);
+  const eyeR = point(5);
+
+  ctx.save();
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+
+  FALLBACK_LIMB_CHAINS.forEach(chain => {
+    const chainPoints = chain.map(index => point(index));
+    drawRoundedShapePath(ctx, chainPoints, clamp(width * 0.065, 38, 86), 'rgba(0, 0, 0, 0.44)');
+  });
+
+  if (shoulderL?.visible && shoulderR?.visible && hipL?.visible && hipR?.visible) {
+    ctx.beginPath();
+    ctx.moveTo(shoulderL.x, shoulderL.y);
+    ctx.lineTo(shoulderR.x, shoulderR.y);
+    ctx.lineTo(hipR.x, hipR.y);
+    ctx.lineTo(hipL.x, hipL.y);
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.44)';
+    ctx.fill();
+  }
+
+  if (nose?.visible && eyeL?.visible && eyeR?.visible) {
+    const eyeCenterX = (eyeL.x + eyeR.x) / 2;
+    const eyeCenterY = (eyeL.y + eyeR.y) / 2;
+    const eyeDistance = Math.hypot(eyeL.x - eyeR.x, eyeL.y - eyeR.y);
+    const headRadius = clamp(eyeDistance * 1.8, 28, 86);
+    const headY = eyeCenterY - headRadius * 0.18;
+
+    ctx.beginPath();
+    ctx.arc(eyeCenterX, headY, headRadius, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.44)';
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.arc(nose.x, nose.y, clamp(width * 0.011, 7, 16), 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+    ctx.fill();
+  }
+
+  ctx.restore();
+};
 
 const GameView: React.FC<GameViewProps> = ({ level, selectedVoiceURI, onEnd, onQuit }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -213,7 +375,7 @@ const GameView: React.FC<GameViewProps> = ({ level, selectedVoiceURI, onEnd, onQ
   };
 
   const onResults = useCallback((results: any) => {
-    if (!canvasRef.current || !results || !results.image) return;
+    if (!canvasRef.current || !results) return;
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
@@ -221,17 +383,7 @@ const GameView: React.FC<GameViewProps> = ({ level, selectedVoiceURI, onEnd, onQ
     const { width, height } = dimensions;
     if (width === 0 || height === 0) return;
 
-    ctx.save();
-    ctx.clearRect(0, 0, width, height);
-    ctx.translate(width, 0);
-    ctx.scale(-1, 1);
-    ctx.drawImage(results.image, 0, 0, width, height);
-    ctx.restore();
-
-    ctx.save();
-    ctx.fillStyle = 'rgba(92, 148, 252, 0.4)';
-    ctx.fillRect(0, 0, width, height);
-    ctx.restore();
+    drawAbstractBackground(ctx, results.image, results.segmentationMask, width, height);
 
     const now = Date.now();
     let fx = -100;
@@ -257,6 +409,14 @@ const GameView: React.FC<GameViewProps> = ({ level, selectedVoiceURI, onEnd, onQ
     }
 
     setIsPoseDetected(pointerDetected);
+
+    if (pointerDetected && results.poseLandmarks) {
+      if (results.segmentationMask) {
+        drawBodySilhouette(ctx, results.segmentationMask, width, height);
+      } else {
+        drawFallbackBodyShape(ctx, results.poseLandmarks, width, height);
+      }
+    }
 
     if (!gameStateRef.current.isGameStarted) {
       const startX = width / 2 - startButtonW / 2;
@@ -310,6 +470,8 @@ const GameView: React.FC<GameViewProps> = ({ level, selectedVoiceURI, onEnd, onQ
         pose.setOptions({
           modelComplexity: 1,
           smoothLandmarks: true,
+          enableSegmentation: true,
+          smoothSegmentation: true,
           minDetectionConfidence: 0.5,
           minTrackingConfidence: 0.5,
         });
