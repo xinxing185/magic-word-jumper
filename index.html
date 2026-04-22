@@ -43,6 +43,60 @@
     .level-card:hover {
       transform: scale(1.05) translateY(-5px);
     }
+    @keyframes menu-rise {
+      0% {
+        opacity: 0;
+        transform: translateY(22px);
+      }
+      100% {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+    @keyframes menu-pop {
+      0% {
+        opacity: 0;
+      }
+      100% {
+        opacity: 1;
+      }
+    }
+    @keyframes menu-float {
+      0%, 100% {
+        transform: translate3d(0, 0, 0);
+      }
+      50% {
+        transform: translate3d(0, -12px, 0);
+      }
+    }
+    .menu-hero-copy {
+      animation: menu-rise 640ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+    }
+    .menu-level-board {
+      animation: menu-rise 720ms 90ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+    }
+    .menu-level-button {
+      opacity: 0;
+      animation: menu-pop 560ms cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+    }
+    .menu-voice-bar {
+      animation: menu-rise 760ms 160ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+    }
+    .menu-float-slow {
+      animation: menu-float 7s ease-in-out infinite;
+    }
+    .menu-float-medium {
+      animation: menu-float 5.8s ease-in-out infinite;
+    }
+    .menu-float-fast {
+      animation: menu-float 4.8s ease-in-out infinite;
+    }
+    .menu-word-tile {
+      border-radius: 8px;
+      box-shadow:
+        0 3px 0 0 rgba(15, 23, 42, 0.18),
+        0 14px 28px rgba(15, 23, 42, 0.15);
+    }
     @keyframes word-card-enter {
       0% {
         opacity: 0;
@@ -77,6 +131,20 @@
       height: 16px;
       border-radius: 3px;
       animation: confetti-fall 1500ms cubic-bezier(0.18, 0.82, 0.28, 1) forwards;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .menu-hero-copy,
+      .menu-level-board,
+      .menu-level-button,
+      .menu-voice-bar,
+      .menu-float-slow,
+      .menu-float-medium,
+      .menu-float-fast,
+      .word-card-enter,
+      .confetti-piece {
+        animation: none !important;
+        opacity: 1 !important;
+      }
     }
   </style>
 <script type="importmap">

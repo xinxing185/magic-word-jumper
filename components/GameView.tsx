@@ -42,6 +42,23 @@ const CONFETTI_PIECES = [
   { left: 93, color: '#4ade80', delay: 115, rotate: -26 },
 ] as const;
 
+const applySelectedVoice = (utterance: SpeechSynthesisUtterance, selectedVoiceURI: string) => {
+  if (!selectedVoiceURI) {
+    utterance.lang = 'en-US';
+    return;
+  }
+
+  const voices = window.speechSynthesis.getVoices();
+  const voice = voices.find(v => v.voiceURI === selectedVoiceURI);
+  if (voice) {
+    utterance.voice = voice;
+    utterance.lang = voice.lang || 'en-US';
+    return;
+  }
+
+  utterance.lang = 'en-US';
+};
+
 const FALLBACK_LIMB_CHAINS = [
   [11, 13, 15],
   [12, 14, 16],
@@ -331,12 +348,7 @@ const GameView: React.FC<GameViewProps> = ({ level, selectedVoiceURI, onEnd, onQ
       try {
         window.speechSynthesis.cancel();
         const utterance = new SpeechSynthesisUtterance(text);
-        if (selectedVoiceURI) {
-          const voices = window.speechSynthesis.getVoices();
-          const voice = voices.find(v => v.voiceURI === selectedVoiceURI);
-          if (voice) utterance.voice = voice;
-        }
-        utterance.lang = 'en-US';
+        applySelectedVoice(utterance, selectedVoiceURI);
         utterance.rate = 0.85;
         utterance.pitch = 1.1;
         utterance.onend = finish;
@@ -354,12 +366,7 @@ const GameView: React.FC<GameViewProps> = ({ level, selectedVoiceURI, onEnd, onQ
       window.speechSynthesis.cancel();
       const cue = CORRECT_CUES[Math.floor(Math.random() * CORRECT_CUES.length)];
       const utterance = new SpeechSynthesisUtterance(cue);
-      if (selectedVoiceURI) {
-        const voices = window.speechSynthesis.getVoices();
-        const voice = voices.find(v => v.voiceURI === selectedVoiceURI);
-        if (voice) utterance.voice = voice;
-      }
-      utterance.lang = 'en-US';
+      applySelectedVoice(utterance, selectedVoiceURI);
       utterance.rate = 0.98;
       utterance.pitch = 1.35;
       utterance.volume = 0.95;
