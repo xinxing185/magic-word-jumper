@@ -16,6 +16,10 @@
       background-color: #a5f3fc;
       overflow: hidden;
     }
+    #root,
+    #root * {
+      font-weight: 400 !important;
+    }
     .pixel-font {
       font-family: 'Press+Start+2P', cursive;
     }
@@ -38,6 +42,41 @@
     }
     .level-card:hover {
       transform: scale(1.05) translateY(-5px);
+    }
+    @keyframes word-card-enter {
+      0% {
+        opacity: 0;
+        transform: translateY(18px) scale(0.94);
+      }
+      100% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+    }
+    .word-card-enter {
+      opacity: 0;
+      animation: word-card-enter 720ms cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+    }
+    @keyframes confetti-fall {
+      0% {
+        opacity: 0;
+        transform: translateY(-18px) scale(0.7) rotate(0deg);
+      }
+      18% {
+        opacity: 1;
+      }
+      100% {
+        opacity: 0;
+        transform: translateY(150px) scale(1) rotate(280deg);
+      }
+    }
+    .confetti-piece {
+      position: absolute;
+      top: 10px;
+      width: 10px;
+      height: 16px;
+      border-radius: 3px;
+      animation: confetti-fall 1500ms cubic-bezier(0.18, 0.82, 0.28, 1) forwards;
     }
   </style>
 <script type="importmap">

@@ -58,10 +58,10 @@ const App: React.FC = () => {
 
       {gameState === GameState.MENU && (
         <div className="z-10 bg-white/95 p-6 md:p-12 rounded-[3rem] pixel-border text-center max-w-6xl w-full mx-4 shadow-2xl overflow-y-auto max-h-[92vh] flex flex-col items-center">
-          <h1 className="text-5xl md:text-7xl font-black text-pink-600 mb-3 leading-tight drop-shadow-sm uppercase">
+          <h1 className="text-5xl md:text-7xl font-normal text-pink-600 mb-3 leading-tight drop-shadow-sm uppercase">
             Magic Jumper! 🌟
           </h1>
-          <p className="text-2xl md:text-3xl text-gray-500 mb-8 font-bold">Pick your Word Adventure!</p>
+          <p className="text-2xl md:text-3xl text-gray-500 mb-8 font-normal">Pick your Word Adventure!</p>
           
           <div className="grid grid-cols-2 md:grid-cols-3 gap-6 md:gap-8 mb-9 w-full max-w-5xl px-2">
             {LEVELS.map(level => (
@@ -80,10 +80,10 @@ const App: React.FC = () => {
                   {level.thumbnail}
                 </div>
                 <div className="text-center">
-                  <span className="block text-xl md:text-2xl font-black text-gray-800 uppercase leading-none mb-2">
+                  <span className="block text-xl md:text-2xl font-normal text-gray-800 uppercase leading-none mb-2">
                     {level.name.replace(/Level\s/i, '')}
                   </span>
-                  <span className="block text-base md:text-lg font-bold text-white bg-violet-500 px-4 py-1 rounded-full shadow-sm">
+                  <span className="block text-base md:text-lg font-normal text-white bg-violet-500 px-4 py-1 rounded-full shadow-sm">
                     {level.category}
                   </span>
                 </div>
@@ -94,12 +94,12 @@ const App: React.FC = () => {
           </div>
 
           <div className="w-full max-w-xl bg-pink-50 p-7 rounded-[2rem] border-4 border-pink-100 shadow-inner">
-            <label className="block text-sm md:text-base text-pink-500 mb-3 uppercase font-black">Voice Teacher:</label>
+            <label className="block text-sm md:text-base text-pink-500 mb-3 uppercase font-normal">Voice Teacher:</label>
             <div className="relative">
               <select 
                 value={selectedVoiceURI}
                 onChange={(e) => setSelectedVoiceURI(e.target.value)}
-                className="w-full p-5 rounded-2xl border-4 border-white bg-white text-xl md:text-2xl font-bold text-gray-700 focus:outline-none focus:ring-4 focus:ring-pink-200 cursor-pointer shadow-sm appearance-none"
+                className="w-full p-5 rounded-2xl border-4 border-white bg-white text-xl md:text-2xl font-normal text-gray-700 focus:outline-none focus:ring-4 focus:ring-pink-200 cursor-pointer shadow-sm appearance-none"
               >
                 {availableVoices.length > 0 ? (
                   availableVoices.map(voice => (
@@ -129,24 +129,24 @@ const App: React.FC = () => {
       {gameState === GameState.SETTLEMENT && (
         <div className="z-10 bg-white/95 p-10 md:p-14 rounded-[3rem] pixel-border text-center max-w-2xl w-full mx-4 shadow-2xl relative">
           <div className="absolute -top-14 left-1/2 -translate-x-1/2 text-8xl md:text-9xl">🏆</div>
-          <h2 className="text-5xl md:text-7xl font-black text-violet-600 mb-10 mt-5 uppercase">Big Win!</h2>
+          <h2 className="text-5xl md:text-7xl font-normal text-violet-600 mb-10 mt-5 uppercase">Big Win!</h2>
           
           <div className="grid grid-cols-2 gap-8 mb-10">
             <div className="p-8 md:p-10 bg-green-50 rounded-3xl border-4 border-green-100">
-              <div className="text-base md:text-xl font-black text-green-500 uppercase mb-2">Stars</div>
-              <div className="text-6xl md:text-8xl font-black text-green-600">{score.correct}</div>
+              <div className="text-base md:text-xl font-normal text-green-500 uppercase mb-2">Stars</div>
+              <div className="text-6xl md:text-8xl font-normal text-green-600">{score.correct}</div>
             </div>
             <div className="p-8 md:p-10 bg-orange-50 rounded-3xl border-4 border-orange-100">
-              <div className="text-base md:text-xl font-black text-orange-400 uppercase mb-2">Total</div>
-              <div className="text-6xl md:text-8xl font-black text-orange-500">{score.total}</div>
+              <div className="text-base md:text-xl font-normal text-orange-400 uppercase mb-2">Total</div>
+              <div className="text-6xl md:text-8xl font-normal text-orange-500">{score.total}</div>
             </div>
           </div>
 
-          <div className="mb-12 p-8 md:p-10 bg-gradient-to-br from-yellow-50 to-orange-50 rounded-[2rem] italic text-2xl md:text-4xl text-gray-700 leading-tight font-medium border-4 border-white shadow-xl">
+          <div className="mb-12 p-8 md:p-10 bg-gradient-to-br from-yellow-50 to-orange-50 rounded-[2rem] italic text-2xl md:text-4xl text-gray-700 leading-tight font-normal border-4 border-white shadow-xl">
             "{encouragement || 'Preparing your special prize...'}"
           </div>
 
-          <PixelButton onClick={() => setGameState(GameState.MENU)} className="w-full py-8 text-3xl md:text-4xl rounded-3xl shadow-xl hover:scale-105 active:scale-95 transition-all uppercase font-black">
+          <PixelButton onClick={() => setGameState(GameState.MENU)} className="w-full py-8 text-3xl md:text-4xl rounded-3xl shadow-xl hover:scale-105 active:scale-95 transition-all uppercase font-normal">
             GO AGAIN! 🔄
           </PixelButton>
         </div>
