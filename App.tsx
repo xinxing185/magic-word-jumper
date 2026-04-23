@@ -1,10 +1,12 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { GameState, Level, GameScore } from './types';
-import { LEVELS } from './constants';
+import { GameState, Level, GameScore, LevelMeta } from './types';
+import { LEVEL_METADATA } from './constants';
 import PixelButton from './components/PixelButton';
 import GameView from './components/GameView';
 import { getEncouragement } from './services/geminiService';
+import { getWordBankForLevel, hasCachedWordBank, refreshWordBankForLevel, WORD_BANK_TARGET_SIZE } from './services/wordBankService';
+import { buildGameLevelFromWordBank } from './utils/questionGenerator';
 
 const LEVEL_TONES = [
   {
@@ -45,10 +47,10 @@ const LEVEL_TONES = [
   },
 ] as const;
 
-const TOTAL_QUESTIONS = LEVELS.reduce((total, level) => total + level.questions.length, 0);
+const TOTAL_TARGET_WORDS = LEVEL_METADATA.length * WORD_BANK_TARGET_SIZE;
 
-const getLevelTitle = (level: Level) => level.name.replace(/^[^A-Za-z0-9]+/, '').trim();
-const getLevelShortName = (level: Level) => getLevelTitle(level).replace(/^Level\s*/i, '');
+const getLevelTitle = (level: LevelMeta) => level.name.replace(/^[^A-Za-z0-9]+/, '').trim();
+const getLevelShortName = (level: LevelMeta) => getLevelTitle(level).replace(/^Level\s*/i, '');
 const VOICE_PREVIEW_WORD = 'apple';
 
 const TEACHER_VOICE_LOCALES = ['en-US', 'en-GB', 'en-AU', 'en-CA', 'en-IE', 'en-NZ', 'en-ZA', 'en-IN'];
@@ -164,6 +166,9 @@ const App: React.FC = () => {
   const [encouragement, setEncouragement] = useState<string>('');
   const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [selectedVoiceURI, setSelectedVoiceURI] = useState<string>('');
+  const [loadingLevelId, setLoadingLevelId] = useState<string | null>(null);
+  const [refreshingLevelId, setRefreshingLevelId] = useState<string | null>(null);
+  const [wordBankNotice, setWordBankNotice] = useState<string>('');
 
   // Browser and OS voice packs are loaded asynchronously in some engines.
   useEffect(() => {
@@ -187,10 +192,52 @@ const App: React.FC = () => {
     };
   }, []);
 
-  const handleLevelSelect = (level: Level) => {
-    setSelectedLevel(level);
-    setGameState(GameState.PLAYING);
+  const handleLevelSelect = async (levelMeta: LevelMeta) => {
+    if (loadingLevelId || refreshingLevelId) return;
+
+    setLoadingLevelId(levelMeta.id);
+    setWordBankNotice('');
+    setGameState(GameState.LOADING);
     setScore({ correct: 0, wrong: 0, total: 0 });
+
+    const wordBankLevel = await getWordBankForLevel(levelMeta.id);
+    const gameLevel = buildGameLevelFromWordBank(levelMeta, wordBankLevel);
+
+    if (wordBankLevel.source === 'fallback') {
+      setWordBankNotice('Using starter words while Gemini is unavailable.');
+    } else if (wordBankLevel.source === 'gemini') {
+      setWordBankNotice('New word trail saved for next time.');
+    }
+
+    setSelectedLevel(gameLevel);
+    setGameState(GameState.PLAYING);
+    setLoadingLevelId(null);
+  };
+
+  const handleWordBankRefresh = async (event: React.MouseEvent<HTMLButtonElement>, levelMeta: LevelMeta) => {
+    event.stopPropagation();
+    if (loadingLevelId || refreshingLevelId) return;
+
+    const hasCachedWords = hasCachedWordBank(levelMeta.id);
+    const actionLabel = hasCachedWords ? 'Replace saved word bank' : 'Generate a fresh word bank';
+    const confirmed = window.confirm(
+      `${actionLabel} for ${getLevelTitle(levelMeta)}?\n\nThis will ask Gemini for a new set of words.`
+    );
+
+    if (!confirmed) return;
+
+    setRefreshingLevelId(levelMeta.id);
+    setWordBankNotice('');
+
+    try {
+      await refreshWordBankForLevel(levelMeta.id);
+      setWordBankNotice(`Fresh words saved for ${getLevelTitle(levelMeta)}.`);
+    } catch (error) {
+      console.warn('Could not refresh word bank', error);
+      setWordBankNotice('Could not refresh words. Keeping the current word bank.');
+    } finally {
+      setRefreshingLevelId(null);
+    }
   };
 
   const handleGameEnd = async (finalScore: GameScore) => {
@@ -254,16 +301,16 @@ const App: React.FC = () => {
                 <div className="mt-8 flex flex-wrap items-center gap-4">
                   <button
                     type="button"
-                    onClick={() => handleLevelSelect(LEVELS[0])}
+                    onClick={() => { void handleLevelSelect(LEVEL_METADATA[0]); }}
                     className="group inline-flex min-h-[64px] items-center justify-center gap-3 rounded-lg bg-slate-950 px-7 text-2xl text-white shadow-xl transition-all hover:-translate-y-1 hover:bg-pink-600 active:translate-y-0"
-                    aria-label={`Start ${getLevelTitle(LEVELS[0])}`}
+                    aria-label={`Start ${getLevelTitle(LEVEL_METADATA[0])}`}
                   >
                     Start
                     <span className="text-3xl transition-transform group-hover:translate-x-1">→</span>
                   </button>
                   <div className="text-base leading-tight text-slate-700 sm:text-lg">
-                    <span className="block text-2xl text-slate-950">{LEVELS.length} trails</span>
-                    {TOTAL_QUESTIONS} words ready
+                    <span className="block text-2xl text-slate-950">{LEVEL_METADATA.length} trails</span>
+                    {TOTAL_TARGET_WORDS} target words
                   </div>
                 </div>
                 <div className="mt-8 grid max-w-md grid-cols-3 divide-x divide-slate-900/15 border-y-2 border-slate-900/15 py-4 text-center">
@@ -287,24 +334,30 @@ const App: React.FC = () => {
                   <div>
                     <h2 className="text-3xl text-slate-950 sm:text-4xl">Choose a trail</h2>
                     <p className="text-lg text-slate-700">Every trail has 10 jump-friendly words.</p>
+                    {wordBankNotice && (
+                      <p className="mt-2 text-base text-slate-700">{wordBankNotice}</p>
+                    )}
                   </div>
                   <span className="hidden text-5xl leading-none lg:block">🪄</span>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 xl:gap-5">
-                  {LEVELS.map((level, index) => {
+                  {LEVEL_METADATA.map((level, index) => {
                     const tone = LEVEL_TONES[index % LEVEL_TONES.length];
 
                     return (
-                      <button
+                      <div
                         key={level.id}
-                        type="button"
-                        onClick={() => handleLevelSelect(level)}
-                        className={`menu-level-button group relative min-h-[136px] overflow-hidden rounded-lg p-4 text-left shadow-xl ring-4 ring-white/60 transition-all duration-200 hover:-translate-y-1 hover:shadow-2xl ${tone.surface} ${tone.ring} active:translate-y-1 sm:min-h-[158px] sm:p-5`}
+                        className={`menu-level-button group relative min-h-[136px] overflow-hidden rounded-lg text-left shadow-xl ring-4 ring-white/60 transition-all duration-200 hover:-translate-y-1 hover:shadow-2xl ${tone.surface} ${tone.ring} sm:min-h-[158px]`}
                         style={{ animationDelay: `${index * 55}ms` }}
                       >
                         <div className={`absolute left-0 top-0 h-full w-2 ${tone.accent}`} />
-                        <div className="relative flex h-full flex-col justify-between gap-4">
+                        <button
+                          type="button"
+                          onClick={() => { void handleLevelSelect(level); }}
+                          disabled={Boolean(loadingLevelId) || refreshingLevelId === level.id}
+                          className="relative flex min-h-[136px] w-full flex-col justify-between gap-4 rounded-lg p-4 pb-10 text-left transition active:translate-y-1 disabled:cursor-wait disabled:opacity-70 sm:min-h-[158px] sm:p-5 sm:pb-11"
+                        >
                           <div className="flex items-start justify-between gap-3">
                             <span className="text-5xl leading-none transition-transform duration-200 group-hover:scale-110 sm:text-6xl">
                               {level.thumbnail}
@@ -318,11 +371,21 @@ const App: React.FC = () => {
                               {level.category}
                             </span>
                             <span className="mt-2 block text-base text-slate-600">
-                              {level.questions.length} words
+                              {WORD_BANK_TARGET_SIZE} target words
                             </span>
                           </div>
-                        </div>
-                      </button>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(event) => { void handleWordBankRefresh(event, level); }}
+                          disabled={Boolean(loadingLevelId) || Boolean(refreshingLevelId)}
+                          aria-label={`Refresh word bank for ${getLevelTitle(level)}`}
+                          title={`Refresh ${getLevelTitle(level)} words`}
+                          className="absolute bottom-3 right-3 z-20 grid h-8 w-8 shrink-0 place-items-center rounded-lg text-lg text-slate-400 transition hover:-translate-y-0.5 hover:bg-white/25 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/45 active:translate-y-0 disabled:cursor-wait disabled:opacity-40 sm:bottom-4 sm:right-4"
+                        >
+                          {refreshingLevelId === level.id ? '…' : '↻'}
+                        </button>
+                      </div>
                     );
                   })}
                 </div>
@@ -370,6 +433,19 @@ const App: React.FC = () => {
             </div>
           </div>
         </main>
+      )}
+
+      {gameState === GameState.LOADING && (
+        <div className="z-10 mx-4 max-w-xl rounded-lg bg-white/95 p-8 text-center shadow-2xl ring-4 ring-white/70">
+          <div className="menu-float-medium mb-4 text-7xl">🪄</div>
+          <h2 className="text-4xl text-slate-950 sm:text-5xl">Building your word trail...</h2>
+          <p className="mt-4 text-xl leading-tight text-slate-700">
+            {loadingLevelId ? `Preparing ${getLevelTitle(LEVEL_METADATA.find(level => level.id === loadingLevelId) ?? LEVEL_METADATA[0])}.` : 'Preparing a fresh word bank.'}
+          </p>
+          <p className="mt-3 text-base text-slate-500">
+            A fresh set of words is getting ready.
+          </p>
+        </div>
       )}
 
       {gameState === GameState.PLAYING && selectedLevel && (

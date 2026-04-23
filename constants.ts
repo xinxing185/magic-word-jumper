@@ -1,5 +1,5 @@
 
-import { Level } from './types';
+import { Level, LevelMeta, WordEntry } from './types';
 
 export const LEVELS: Level[] = [
   {
@@ -172,3 +172,33 @@ export const COLORS = {
   accent: '#facc15', // yellow-400
   background: '#a5f3fc', // cyan-200
 };
+
+const toWordKey = (word: string) => word.trim().toLowerCase();
+
+export const LEVEL_METADATA: LevelMeta[] = LEVELS.map(({ id, name, category, thumbnail }) => ({
+  id,
+  name,
+  category,
+  thumbnail,
+}));
+
+export const FALLBACK_WORD_BANKS: Record<string, WordEntry[]> = Object.fromEntries(
+  LEVELS.map(level => {
+    const wordsByKey = new Map<string, WordEntry>();
+
+    level.questions.forEach(question => {
+      question.options.forEach(option => {
+        const word = toWordKey(option.word);
+        if (!word || wordsByKey.has(word)) return;
+
+        wordsByKey.set(word, {
+          word,
+          icon: option.image,
+          category: level.category.toLowerCase(),
+        });
+      });
+    });
+
+    return [level.id, Array.from(wordsByKey.values())];
+  })
+) as Record<string, WordEntry[]>;
