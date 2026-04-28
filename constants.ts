@@ -1,5 +1,5 @@
 
-import { Level, LevelMeta, WordEntry } from './types';
+import type { Level, LevelMeta, WordEntry } from './types';
 
 export const LEVELS: Level[] = [
   {

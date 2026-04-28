@@ -1,6 +1,6 @@
 import { GoogleGenAI, Type } from '@google/genai';
 import type { IncomingMessage, ServerResponse } from 'http';
-import { LEVEL_METADATA } from '../constants';
+import { LEVEL_METADATA } from '../constants.js';
 import type { LevelMeta, WordEntry } from '../types';
 
 type ApiRequest = IncomingMessage & {

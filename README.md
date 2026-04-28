@@ -15,10 +15,13 @@ View your app in AI Studio: https://ai.studio/apps/drive/1sTlBv0HsFtnS1dF-nolQTz
 1. Install dependencies:
    `npm install`
 2. Set `GEMINI_API_KEY` in `.env.local`.
-3. Run the app with Vercel's local dev server so `/api/*` routes are available:
-   `npx vercel dev`
+3. Run the app with Vercel's local dev server:
+   `npm run dev`
 
-`npm run dev` starts only the Vite frontend and will not serve the Vercel API routes.
+`npm run dev` starts the Vite frontend and Vercel Serverless API routes together, so `/api/word-bank` and `/api/encouragement` are available at the same local origin.
+It also loads `.env.local` before starting Vercel Dev, so `GEMINI_API_KEY` is available to the local API functions.
+
+For pure frontend UI work only, run `npm run dev:vite`. That starts Vite directly and does not serve `/api/*` routes.
 
 ## Deploy to Vercel
 

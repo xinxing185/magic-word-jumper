@@ -51,6 +51,7 @@ const TOTAL_TARGET_WORDS = LEVEL_METADATA.length * WORD_BANK_TARGET_SIZE;
 
 const getLevelTitle = (level: LevelMeta) => level.name.replace(/^[^A-Za-z0-9]+/, '').trim();
 const getLevelShortName = (level: LevelMeta) => getLevelTitle(level).replace(/^Level\s*/i, '');
+const formatWordCount = (count: number) => `${count} ${count === 1 ? 'word' : 'words'}`;
 const VOICE_PREVIEW_WORD = 'apple';
 
 const TEACHER_VOICE_LOCALES = ['en-US', 'en-GB', 'en-AU', 'en-CA', 'en-IE', 'en-NZ', 'en-ZA', 'en-IN'];
@@ -200,18 +201,25 @@ const App: React.FC = () => {
     setGameState(GameState.LOADING);
     setScore({ correct: 0, wrong: 0, total: 0 });
 
-    const wordBankLevel = await getWordBankForLevel(levelMeta.id);
-    const gameLevel = buildGameLevelFromWordBank(levelMeta, wordBankLevel);
+    try {
+      const wordBankLevel = await getWordBankForLevel(levelMeta.id);
+      const gameLevel = buildGameLevelFromWordBank(levelMeta, wordBankLevel);
+      const levelTitle = getLevelTitle(levelMeta);
 
-    if (wordBankLevel.source === 'fallback') {
-      setWordBankNotice('Using starter words while Gemini is unavailable.');
-    } else if (wordBankLevel.source === 'gemini') {
-      setWordBankNotice('New word trail saved for next time.');
+      if (wordBankLevel.source === 'fallback') {
+        setWordBankNotice('Using starter words while Gemini is unavailable.');
+        window.alert(`Could not generate fresh words for ${levelTitle}. Using starter words for now.`);
+      } else if (wordBankLevel.source === 'gemini') {
+        const wordCount = wordBankLevel.words.length;
+        setWordBankNotice('New word trail saved for next time.');
+        window.alert(`Generated ${formatWordCount(wordCount)} for ${levelTitle}.`);
+      }
+
+      setSelectedLevel(gameLevel);
+      setGameState(GameState.PLAYING);
+    } finally {
+      setLoadingLevelId(null);
     }
-
-    setSelectedLevel(gameLevel);
-    setGameState(GameState.PLAYING);
-    setLoadingLevelId(null);
   };
 
   const handleWordBankRefresh = async (event: React.MouseEvent<HTMLButtonElement>, levelMeta: LevelMeta) => {
@@ -230,11 +238,16 @@ const App: React.FC = () => {
     setWordBankNotice('');
 
     try {
-      await refreshWordBankForLevel(levelMeta.id);
-      setWordBankNotice(`Fresh words saved for ${getLevelTitle(levelMeta)}.`);
+      const wordBankLevel = await refreshWordBankForLevel(levelMeta.id);
+      const levelTitle = getLevelTitle(levelMeta);
+      const wordCount = wordBankLevel.words.length;
+      setWordBankNotice(`Fresh words saved for ${levelTitle}.`);
+      window.alert(`Updated ${formatWordCount(wordCount)} for ${levelTitle}.`);
     } catch (error) {
+      const levelTitle = getLevelTitle(levelMeta);
       console.warn('Could not refresh word bank', error);
       setWordBankNotice('Could not refresh words. Keeping the current word bank.');
+      window.alert(`Could not refresh words for ${levelTitle}. Keeping the current word bank.`);
     } finally {
       setRefreshingLevelId(null);
     }
