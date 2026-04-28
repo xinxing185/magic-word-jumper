@@ -207,9 +207,9 @@ const App: React.FC = () => {
       const levelTitle = getLevelTitle(levelMeta);
 
       if (wordBankLevel.source === 'fallback') {
-        setWordBankNotice('Using starter words while Gemini is unavailable.');
+        setWordBankNotice('Using starter words while the AI service is unavailable.');
         window.alert(`Could not generate fresh words for ${levelTitle}. Using starter words for now.`);
-      } else if (wordBankLevel.source === 'gemini') {
+      } else if (wordBankLevel.source === 'gemini' || wordBankLevel.source === 'deepseek') {
         const wordCount = wordBankLevel.words.length;
         setWordBankNotice('New word trail saved for next time.');
         window.alert(`Generated ${formatWordCount(wordCount)} for ${levelTitle}.`);
@@ -229,7 +229,7 @@ const App: React.FC = () => {
     const hasCachedWords = hasCachedWordBank(levelMeta.id);
     const actionLabel = hasCachedWords ? 'Replace saved word bank' : 'Generate a fresh word bank';
     const confirmed = window.confirm(
-      `${actionLabel} for ${getLevelTitle(levelMeta)}?\n\nThis will ask Gemini for a new set of words.`
+      `${actionLabel} for ${getLevelTitle(levelMeta)}?\n\nThis will ask the AI service for a new set of words.`
     );
 
     if (!confirmed) return;

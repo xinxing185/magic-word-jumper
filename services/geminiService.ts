@@ -18,7 +18,7 @@ export const getEncouragement = async (score: number, total: number): Promise<st
       ? payload.message
       : "Wow! You are a superstar! Keep playing! 🌟";
   } catch (error) {
-    console.error("Gemini error:", error);
+    console.error('AI encouragement error:', error);
     return "Amazing job, little explorer! You're getting so smart! 🚀";
   }
 };

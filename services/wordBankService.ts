@@ -7,6 +7,7 @@ const WORD_BANK_CACHE_PREFIX = 'mwj:word-bank:v1';
 type GeneratedWordBankPayload = {
   levelId?: unknown;
   words?: unknown;
+  source?: unknown;
   generatedAt?: unknown;
 };
 
@@ -125,7 +126,7 @@ const parseGeneratedWordBank = (parsed: GeneratedWordBankPayload, levelMeta: Lev
   return buildWordBankLevel(
     levelMeta,
     words.slice(0, WORD_BANK_TARGET_SIZE),
-    'gemini',
+    parsed.source === 'gemini' ? 'gemini' : 'deepseek',
     typeof parsed.generatedAt === 'string' ? parsed.generatedAt : new Date().toISOString()
   );
 };

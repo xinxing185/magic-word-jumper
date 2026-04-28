@@ -4,7 +4,7 @@
 
 # Magic Word Jumper
 
-This is a Vite + React app with Vercel Serverless API routes for Gemini calls. Keep `GEMINI_API_KEY` on the server only; do not expose it to the browser bundle.
+This is a Vite + React app with Vercel Serverless API routes for AI calls. DeepSeek is the default local provider, and Gemini can still be enabled with `AI_PROVIDER=gemini`. Keep provider API keys on the server only; do not expose them to the browser bundle.
 
 View your app in AI Studio: https://ai.studio/apps/drive/1sTlBv0HsFtnS1dF-nolQTzeykmk5BJRh
 
@@ -14,12 +14,14 @@ View your app in AI Studio: https://ai.studio/apps/drive/1sTlBv0HsFtnS1dF-nolQTz
 
 1. Install dependencies:
    `npm install`
-2. Set `GEMINI_API_KEY` in `.env.local`.
+2. Set AI provider environment variables in `.env.local`.
+   - DeepSeek: `AI_PROVIDER=deepseek` and `DEEPSEEK_API_KEY=...`
+   - Gemini: `AI_PROVIDER=gemini` and `GEMINI_API_KEY=...`
 3. Run the app with Vercel's local dev server:
    `npm run dev`
 
 `npm run dev` starts the Vite frontend and Vercel Serverless API routes together, so `/api/word-bank` and `/api/encouragement` are available at the same local origin.
-It also loads `.env.local` before starting Vercel Dev, so `GEMINI_API_KEY` is available to the local API functions.
+It also loads `.env.local` before starting Vercel Dev, so server-side AI keys are available to the local API functions.
 
 For pure frontend UI work only, run `npm run dev:vite`. That starts Vite directly and does not serve `/api/*` routes.
 
@@ -30,5 +32,5 @@ For pure frontend UI work only, run `npm run dev:vite`. That starts Vite directl
 3. Use the Vite defaults:
    - Build Command: `npm run build`
    - Output Directory: `dist`
-4. Add the environment variable `GEMINI_API_KEY` in Vercel project settings.
+4. Add the provider environment variables in Vercel project settings.
 5. Deploy.
