@@ -1,5 +1,6 @@
 import { FALLBACK_WORD_BANKS, LEVEL_METADATA } from '../constants';
 import { LevelMeta, WordBankLevel, WordEntry } from '../types';
+import { apiUrl } from './apiClient';
 
 export const WORD_BANK_TARGET_SIZE = 80;
 const WORD_BANK_CACHE_PREFIX = 'mwj:word-bank:v1';
@@ -132,7 +133,7 @@ const parseGeneratedWordBank = (parsed: GeneratedWordBankPayload, levelMeta: Lev
 };
 
 const generateWordBank = async (levelMeta: LevelMeta): Promise<WordBankLevel> => {
-  const response = await fetch('/api/word-bank', {
+  const response = await fetch(apiUrl('/word-bank'), {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

@@ -1,7 +1,9 @@
 
+import { apiUrl } from './apiClient';
+
 export const getEncouragement = async (score: number, total: number): Promise<string> => {
   try {
-    const response = await fetch('/api/encouragement', {
+    const response = await fetch(apiUrl('/encouragement'), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

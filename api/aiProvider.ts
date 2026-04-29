@@ -116,8 +116,7 @@ const requestDeepSeek = async (messages: Array<{ role: 'system' | 'user'; conten
   if (typeof content !== 'string' || !content.trim()) {
     throw new Error('DeepSeek returned an empty response');
   }
-  console.log('DeepSeek response:', content);
-  
+
   return content.trim();
 };
 
