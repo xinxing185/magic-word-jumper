@@ -4,7 +4,7 @@ import { GameState, Level, GameScore, LevelMeta } from './types';
 import { LEVEL_METADATA } from './constants';
 import PixelButton from './components/PixelButton';
 import GameView from './components/GameView';
-import { getEncouragement } from './services/geminiService';
+import { getEncouragement } from './services/encouragementService';
 import { getWordBankForLevel, hasCachedWordBank, refreshWordBankForLevel, WORD_BANK_TARGET_SIZE } from './services/wordBankService';
 import { buildGameLevelFromWordBank } from './utils/questionGenerator';
 
