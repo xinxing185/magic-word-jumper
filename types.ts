@@ -21,7 +21,7 @@ export interface WordBankLevel {
   category: string;
   thumbnail: string;
   words: WordEntry[];
-  source: 'cache' | 'gemini' | 'fallback';
+  source: 'cache' | 'deepseek' | 'gemini' | 'fallback';
   generatedAt?: string;
 }
 

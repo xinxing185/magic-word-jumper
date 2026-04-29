@@ -27,7 +27,7 @@ const NEXT_QUESTION_COUNTDOWN_SECONDS = 3;
 const MIN_LANDMARK_VISIBILITY = 0.35;
 // Dev switch: set this to true to let body/head pose trigger game actions again.
 // Camera, abstract background, and body silhouette stay enabled either way.
-const BODY_INTERACTION_ENABLED = false;
+const BODY_INTERACTION_ENABLED = true;
 const CORRECT_CUES = ['Great job!', 'Excellent!', 'Amazing!'];
 const CONFETTI_PIECES = [
   { left: 8, color: '#fde047', delay: 0, rotate: -12 },
