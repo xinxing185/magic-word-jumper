@@ -68,6 +68,8 @@ CloudBase 静态托管前端时，构建命令需要显式设置 API Base：
 VITE_API_BASE_URL=https://<cloudbase-domain>/api npm run build
 ```
 
+Cloudflare Pages 只托管静态前端时也使用同样的 API Base 配置。Cloudflare Pages 环境变量只设置 `VITE_API_BASE_URL=https://<cloudbase-domain>/api`，AI 密钥仍只放在 CloudBase 函数环境变量中。若 Cloudflare 页面跨域调用 CloudBase API 失败，可在 CloudBase 函数配置 `CORS_ALLOWED_ORIGINS=https://<project>.pages.dev,https://<custom-domain>`，但 CloudBase 网关已注入 `Access-Control-Allow-Origin` 时不要再设置，避免重复 CORS 响应头。
+
 Vercel 本地和线上默认请求同源 `/api`，通常不要设置 `VITE_API_BASE_URL`。
 
 ## 运行命令
@@ -89,7 +91,7 @@ Vercel 本地和线上默认请求同源 `/api`，通常不要设置 `VITE_API_B
 - 状态与缓存：`localStorage` 缓存包括词库和近期单词；改缓存 key 或结构时要考虑旧缓存失效和 fallback。
 - UI 风格：保持儿童友好、明亮、大按钮、低阅读负担；不要引入复杂设置页或成人化界面。
 - 验证习惯：代码改动后优先运行 `npm run typecheck`；涉及构建或部署配置时运行 `npm run build`；涉及体感/UI 时用浏览器实际检查摄像头、点击答题、结算和 API fallback。
-- 部署习惯：Vercel 本地/线上默认请求同源 `/api`；CloudBase 静态托管需要构建时设置 `VITE_API_BASE_URL=https://<cloudbase-domain>/api`。
+- 部署习惯：Vercel 本地/线上默认请求同源 `/api`；CloudBase 静态托管或 Cloudflare Pages 静态托管都需要构建时设置 `VITE_API_BASE_URL=https://<cloudbase-domain>/api`。
 
 ## 后续开发注意点
 
