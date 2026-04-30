@@ -19,9 +19,36 @@ const corsHeaders = {
   'Content-Type': 'application/json; charset=utf-8',
 };
 
-const jsonResponse = (statusCode, body) => ({
+const getHeader = (headers, name) => {
+  if (!headers || typeof headers !== 'object') return '';
+  const directValue = headers[name] || headers[name.toLowerCase()];
+  return typeof directValue === 'string' ? directValue.trim() : '';
+};
+
+const getAllowedOrigins = () => (
+  process.env.CORS_ALLOWED_ORIGINS || ''
+).split(',').map(origin => origin.trim()).filter(Boolean);
+
+const getCorsHeaders = (event) => {
+  const allowedOrigins = getAllowedOrigins();
+  if (!allowedOrigins.length) return corsHeaders;
+
+  const requestOrigin = getHeader(event?.headers, 'origin');
+  const allowAnyOrigin = allowedOrigins.includes('*');
+  const allowedOrigin = allowAnyOrigin ? '*' : allowedOrigins.find(origin => origin === requestOrigin);
+
+  if (!allowedOrigin) return corsHeaders;
+
+  return {
+    ...corsHeaders,
+    'Access-Control-Allow-Origin': allowedOrigin,
+    Vary: 'Origin',
+  };
+};
+
+const jsonResponse = (statusCode, body, event) => ({
   statusCode,
-  headers: corsHeaders,
+  headers: getCorsHeaders(event),
   body: JSON.stringify(body),
 });
 
@@ -291,12 +318,12 @@ const clampScore = (value) => {
   return Number.isFinite(numberValue) ? Math.max(0, Math.floor(numberValue)) : 0;
 };
 
-const handleWordBank = async (body) => {
+const handleWordBank = async (body, event) => {
   const levelId = typeof body.levelId === 'string' ? body.levelId : '';
   const levelMeta = getLevelMeta(levelId);
 
   if (!levelMeta) {
-    return jsonResponse(400, { error: 'Unknown levelId' });
+    return jsonResponse(400, { error: 'Unknown levelId' }, event);
   }
 
   const provider = getProvider();
@@ -308,10 +335,10 @@ const handleWordBank = async (body) => {
     words,
     source: provider,
     generatedAt: new Date().toISOString(),
-  });
+  }, event);
 };
 
-const handleEncouragement = async (body) => {
+const handleEncouragement = async (body, event) => {
   const score = clampScore(body.score);
   const total = Math.max(1, clampScore(body.total));
   const provider = getProvider();
@@ -319,7 +346,7 @@ const handleEncouragement = async (body) => {
 
   return jsonResponse(200, {
     message: message || 'Wow! You are a superstar! Keep playing!',
-  });
+  }, event);
 };
 
 exports.main = async (event, context) => {
@@ -337,13 +364,13 @@ exports.main = async (event, context) => {
   if (method === 'OPTIONS') {
     return {
       statusCode: 204,
-      headers: corsHeaders,
+      headers: getCorsHeaders(event),
       body: '',
     };
   }
 
   if (method !== 'POST') {
-    return jsonResponse(405, { error: 'Method not allowed' });
+    return jsonResponse(405, { error: 'Method not allowed' }, event);
   }
 
   const path = getPath(event, context);
@@ -357,20 +384,20 @@ exports.main = async (event, context) => {
         path,
         provider: getProvider(),
         timestamp: new Date().toISOString(),
-      });
+      }, event);
     }
 
     if (path === '/word-bank' || path === '/api/word-bank') {
-      return await handleWordBank(body);
+      return await handleWordBank(body, event);
     }
 
     if (path === '/encouragement' || path === '/api/encouragement') {
-      return await handleEncouragement(body);
+      return await handleEncouragement(body, event);
     }
 
-    return jsonResponse(404, { error: 'Not found' });
+    return jsonResponse(404, { error: 'Not found' }, event);
   } catch (error) {
     console.error('CloudBase API error:', error);
-    return jsonResponse(502, { error: 'AI service unavailable' });
+    return jsonResponse(502, { error: 'AI service unavailable' }, event);
   }
 };

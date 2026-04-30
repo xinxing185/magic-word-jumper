@@ -139,3 +139,23 @@ VITE_API_BASE_URL=https://<your-cloudbase-app-domain>/api npm run build
 - 打开 CloudBase 静态网站默认域名。
 - 选择一个关卡，确认可以生成词库。
 - 完成一局游戏，确认结算页能显示 AI 鼓励语。
+
+## 部署 Cloudflare Pages 静态站 + CloudBase API
+
+也可以只把静态前端托管到 Cloudflare Pages，`/api/*` 仍然使用腾讯云 CloudBase。
+
+Cloudflare Pages 配置：
+
+- Build Command: `npm run build`
+- Output Directory: `dist`
+- Environment Variable: `VITE_API_BASE_URL=https://<your-cloudbase-app-domain>/api`
+
+`DEEPSEEK_API_KEY`、`GEMINI_API_KEY` 等 AI 密钥只放在 CloudBase 云函数环境变量中，不要添加到 Cloudflare Pages。
+
+如果 Cloudflare 页面调用 API 时出现浏览器 CORS 错误，优先在 CloudBase 控制台配置跨域；也可以在 CloudBase 云函数环境变量中设置：
+
+```sh
+CORS_ALLOWED_ORIGINS=https://<your-cloudflare-project>.pages.dev,https://<your-custom-domain>
+```
+
+完整清单见 [docs/cloudflare-pages-cloudbase.md](./docs/cloudflare-pages-cloudbase.md)。

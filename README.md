@@ -139,3 +139,23 @@ After static deployment, test:
 - Open the CloudBase static hosting domain.
 - Pick a level and verify the word bank loads.
 - Finish a game and verify the encouragement message loads.
+
+## Deploy Cloudflare Pages Static Site with CloudBase API
+
+You can host only the static frontend on Cloudflare Pages while keeping `/api/*` on Tencent CloudBase.
+
+Cloudflare Pages settings:
+
+- Build Command: `npm run build`
+- Output Directory: `dist`
+- Environment Variable: `VITE_API_BASE_URL=https://<your-cloudbase-app-domain>/api`
+
+Keep AI keys such as `DEEPSEEK_API_KEY` and `GEMINI_API_KEY` in the CloudBase function environment only. Do not add them to Cloudflare Pages.
+
+If the Cloudflare-hosted page reports a browser CORS error, configure CloudBase route CORS or set `CORS_ALLOWED_ORIGINS` on the CloudBase function:
+
+```sh
+CORS_ALLOWED_ORIGINS=https://<your-cloudflare-project>.pages.dev,https://<your-custom-domain>
+```
+
+See [docs/cloudflare-pages-cloudbase.md](./docs/cloudflare-pages-cloudbase.md) for the full checklist.
